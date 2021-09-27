@@ -42,7 +42,6 @@ export class POSFacadeImpl implements POSFacade {
       }
 
       const posPriceListByMonth = posPriceListByMonthOrError.value;
-      console.log(posPriceListByMonth);
       console.log(`${tid}:${POSFacadeImpl.name} - Writing result into file ${outputFilePath}`);
       await FileHelper.writeCSVFile(outputFilePath, posPriceListByMonth.map(it => ([it.id, it.price.toFixed(2), moment(it.yearMonth).format('MM_YYYY')])));
 
