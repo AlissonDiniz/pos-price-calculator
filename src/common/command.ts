@@ -1,4 +1,4 @@
 export interface Command<T> {
-  tid: String;
+  tid: string;
   body: T;
 }

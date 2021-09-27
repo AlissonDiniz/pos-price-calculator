@@ -4,6 +4,8 @@ import { Either } from "../../common/either";
 export interface CalculatePOSPriceFromFileDTO {
   inputFilePath: string;
   outputFilePath: string;
+  fromDate: Date,
+  toDate: Date,
 }
 
 export interface POSFacade {

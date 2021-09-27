@@ -12,7 +12,7 @@ export class POSFacadeImpl implements POSFacade {
   async calcPriceFromFile(command: Command<CalculatePOSPriceFromFileDTO>): Promise<Either<Error, null>> {
     const { tid, body } = command;
     try {
-      const { inputFilePath, outputFilePath } = body;
+      const { inputFilePath, outputFilePath, fromDate, toDate } = body;
   
       console.log(`${tid}:${POSFacadeImpl.name} - Calculating POS price for file ${inputFilePath}`);
       if (!inputFilePath) {
@@ -32,6 +32,8 @@ export class POSFacadeImpl implements POSFacade {
         tid,
         body: {
           posEventList: eventList,
+          fromDate,
+          toDate,
         }
       });
 
