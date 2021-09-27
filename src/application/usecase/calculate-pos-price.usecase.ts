@@ -9,6 +9,12 @@ export interface CalculatePOSPriceDTO {
   posEventList: POSEvent[];
 }
 
+export interface POSPriceMonth {
+  id: string,
+  price: number,
+  yearMonth: Date,
+}
+
 interface POSEventEntry {
   key: string,
   event: POSEvent,
@@ -23,7 +29,7 @@ interface POSDayEvent {
 
 export default class CalculatePOSPriceUseCase {
 
-  async execute(command: Command<CalculatePOSPriceDTO>): Promise<Either<Error, null>> {
+  async execute(command: Command<CalculatePOSPriceDTO>): Promise<Either<Error, POSPriceMonth[]>> {
     const { tid, body } = command;
     try {
       const { posEventList } = body;
@@ -31,15 +37,13 @@ export default class CalculatePOSPriceUseCase {
       console.log(`${tid}:${CalculatePOSPriceUseCase.name} - Calculating POS price`);
       const posMap = this._groupEventByPOS(posEventList);
 
+      const result: POSPriceMonth[] = [];
       Array.from(posMap.entries()).forEach(([key, value]) => {
-        const price = this._calcPOSPrice(value);
-        console.log(key, price);
+        const posPriceMonth = this._calcPOSPrice(key, value);
+        result.push.apply(result, posPriceMonth);
       });
 
-      // const days = Array.from(Array(moment('2021-01').daysInMonth()), (_, i) => i + 1);
-      // console.log(days);
-
-      return right(null);
+      return right(result);
     } catch(e) {
       console.log(`${tid}:${CalculatePOSPriceUseCase.name} - ${e}`);
       return left(e as Error);
@@ -59,32 +63,56 @@ export default class CalculatePOSPriceUseCase {
     return posMap;
   }
 
-  _calcPOSPrice(eventList: POSEvent[]): Number {
-    if(eventList.some(it => it.type === POSEventType.ACTIVATE)) {
-      const firstDate = moment('2021-01').startOf('months');
-      const lastDate = moment('2021-01').endOf('months');
-      const daysInMonth = (moment('2021-01').daysInMonth() - 1);
-      
-      const dayMap = new Map<string, POSDayEvent>();
-      for (let i = 1; i <= daysInMonth; i++) {
-        dayMap.set(firstDate.format('YYYY-MM-DD'), { price: 0, active: false, promo: false } as POSDayEvent);
-        firstDate.add(1, 'days');
+  _calcPOSPrice(posId: string, eventList: POSEvent[]): POSPriceMonth[] {
+    const eventListGroupedByMonth = new Map<string, POSEvent[]>();
+    eventList.forEach(it => {
+      const monthKey = moment(it.initialDate).format('MM');
+      const eventListForMonth = eventListGroupedByMonth.get(monthKey);
+      if (eventListForMonth) {
+        eventListForMonth.push(it);
+      } else {
+        eventListGroupedByMonth.set(monthKey, [it]);
       }
+    });
 
-      const eventListMap = new Map<string, POSEventEntry>();
-      eventList.forEach(it => {
-        const key = uuidv4();
-        eventListMap.set(key, { key, event: it, priceForDay: it.price ? (it.price / daysInMonth) : 0 });
-      });
+    const result: POSPriceMonth[] = Array.from(eventListGroupedByMonth.values()).map(it => {
+      const firstEvent = it[0];
+      const yearMonth = moment(firstEvent.initialDate).startOf('months').toDate();
+      if(it.some(x => x.type === POSEventType.ACTIVATE)) {
+        return {
+          id: posId,
+          price: this._calcPOSPriceForMonth(yearMonth, it),
+          yearMonth,
+        } as POSPriceMonth; 
+      }
+      
+      return { id: posId, price: 0, yearMonth } as POSPriceMonth; 
+    });
+    return result;
+  }
 
-      Array.from(eventListMap.values())
-        .sort((a, b) => a.event.initialDate.getTime() - b.event.initialDate.getTime())
-        .forEach(v => this._applyEvent(dayMap, eventListMap, v));
-
-      const price = Array.from(dayMap.values()).filter(it => it.active).reduce((total, day) => total + day.price, 0);
-      return MathHelper.round(price, 2);
+  _calcPOSPriceForMonth(yearMonth: Date, eventList: POSEvent[]) {
+    const firstDate = moment(yearMonth).startOf('months');
+    const daysInMonth = moment(yearMonth).daysInMonth();
+      
+    const dayMap = new Map<string, POSDayEvent>();
+    for (let i = 1; i <= daysInMonth; i++) {
+      dayMap.set(firstDate.format('YYYY-MM-DD'), { price: 0, active: false, promo: false } as POSDayEvent);
+      firstDate.add(1, 'days');
     }
-    return 0;
+
+    const eventListMap = new Map<string, POSEventEntry>();
+    eventList.forEach(it => {
+      const key = uuidv4();
+      eventListMap.set(key, { key, event: it, priceForDay: it.price ? (it.price / daysInMonth) : 0 });
+    });
+
+    Array.from(eventListMap.values())
+      .sort((a, b) => a.event.initialDate.getTime() - b.event.initialDate.getTime())
+      .forEach(v => this._applyEvent(dayMap, eventListMap, v));
+
+    const price = Array.from(dayMap.values()).filter(it => it.active).reduce((total, day) => total + day.price, 0);
+    return MathHelper.round(price, 2);
   }
 
   _applyEvent(dayMap: Map<string, POSDayEvent>, eventListMap: Map<string, POSEventEntry>, posEventEntry: POSEventEntry) {

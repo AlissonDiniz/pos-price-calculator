@@ -1,4 +1,5 @@
 
+import moment from "moment";
 import { Command } from "../../../common/command";
 import { Either, left, right } from "../../../common/either";
 import FileHelper from "../../../common/helper/file.helper";
@@ -11,7 +12,7 @@ export class POSFacadeImpl implements POSFacade {
   async calcPriceFromFile(command: Command<CalculatePOSPriceFromFileDTO>): Promise<Either<Error, null>> {
     const { tid, body } = command;
     try {
-      const { inputFilePath } = body;
+      const { inputFilePath, outputFilePath } = body;
   
       console.log(`${tid}:${POSFacadeImpl.name} - Calculating POS price for file ${inputFilePath}`);
       if (!inputFilePath) {
@@ -27,12 +28,22 @@ export class POSFacadeImpl implements POSFacade {
         finalDate: data[4],
       }));
 
-      await calculatePOSPriceUseCase.execute({
+      const posPriceListByMonthOrError = await calculatePOSPriceUseCase.execute({
         tid,
         body: {
           posEventList: eventList,
         }
       });
+
+      if (posPriceListByMonthOrError.isLeft()) {
+        throw posPriceListByMonthOrError.value;
+      }
+
+      const posPriceListByMonth = posPriceListByMonthOrError.value;
+      console.log(posPriceListByMonth);
+      console.log(`${tid}:${POSFacadeImpl.name} - Writing result into file ${outputFilePath}`);
+      await FileHelper.writeCSVFile(outputFilePath, posPriceListByMonth.map(it => ([it.id, it.price.toFixed(2), moment(it.yearMonth).format('MM_YYYY')])));
+
       return right(null);
     } catch(e) {
       console.log(`${tid}:${POSFacadeImpl.name} - ${e}`);

@@ -35,5 +35,5 @@ If you are all good, just follow these steps:
 
   - Run:
   ```
-    node build/src/adapter/cli/calc-pos-price-from-file.cmd.js --input=eventos.csv
+    node build/src/adapter/cli/calc-pos-price-from-file.cmd.js --input=eventos.csv --output=faturamentos.csv
   ```

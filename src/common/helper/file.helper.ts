@@ -10,4 +10,10 @@ export default class FileHelper {
     return fileData.split(FileHelper.BREAK_LINE).map(it => parseCallback(it.split(FileHelper.CSV_SEPARATOR)));
   }
 
+  static async writeCSVFile(outputFilePath: string, data: Array<Array<string>>): Promise<void> {
+    const fileData = data.map(it => it.join(FileHelper.CSV_SEPARATOR)).join(FileHelper.BREAK_LINE);
+    await fs.writeFile(outputFilePath, fileData);
+  }
+
+
 }
